@@ -1204,8 +1204,7 @@ def display_dynamic_clustering_results(simulation_results, earlier_year, later_y
 
 def render_comparison_view():
     """Display the multi-year comparison view with analysis across different years."""
-    st.markdown('<h2 class="section-header">Multi-Year Comparison</h2>', unsafe_allow_html=True)
-    
+
     if len(st.session_state.datasets) < 2:
         st.info("""
             **Multiple datasets required**
@@ -1215,8 +1214,6 @@ def render_comparison_view():
         )
     else:
         # Year selection for comparison with improved UI
-        st.markdown('<div class="card-container">', unsafe_allow_html=True)
-        
         available_years = sorted(st.session_state.datasets.keys())
         
         st.markdown("<div class='section-header'>Select Years to Compare</div>", unsafe_allow_html=True)
@@ -1477,7 +1474,7 @@ def render_remaining_life_analysis_integrated(comparison_results, earlier_year, 
                     # Initialize FFS analyzer
                     ffs_analyzer = FFSDefectInteraction(
                         axial_interaction_distance_mm=25.4,  # 1 inch
-                        circumferential_interaction_method=clustering_method
+                        circumferential_interaction_method=clustering_method #  type: ignore
                     )
                     
                     # Apply clustering to both years
@@ -1612,9 +1609,9 @@ def render_remaining_life_analysis_integrated(comparison_results, earlier_year, 
                 
                 # Check for errors in the results
                 error_rows = growth_df[
-                    growth_df.get('error', '').notna() & 
+                    growth_df.get('error', '').notna() & #  type: ignore
                     (growth_df.get('error', '') != '') & 
-                    (growth_df.get('error', '').astype(str) != 'nan')
+                    (growth_df.get('error', '').astype(str) != 'nan') # type: ignore
                 ]
                 if not error_rows.empty:
                     st.warning(f"⚠️ {len(error_rows)} matches had errors during analysis")
@@ -1623,9 +1620,9 @@ def render_remaining_life_analysis_integrated(comparison_results, earlier_year, 
                 
                 # Filter out error rows for remaining life calculation
                 valid_growth_df = growth_df[
-                    growth_df.get('error', '').isna() | 
+                    growth_df.get('error', '').isna() |  # type: ignore
                     (growth_df.get('error', '') == '') |
-                    (growth_df.get('error', '').astype(str) == 'nan')
+                    (growth_df.get('error', '').astype(str) == 'nan') #  type: ignore
                 ]
                 if valid_growth_df.empty:
                     st.error("No valid growth data available after error filtering")
@@ -1777,7 +1774,7 @@ def render_remaining_life_analysis(defects_df_year1, defects_df_year2,
                 # Initialize FFS analyzer
                 ffs_analyzer = FFSDefectInteraction(
                     axial_interaction_distance_mm=25.4,  # 1 inch
-                    circumferential_interaction_method=clustering_method
+                    circumferential_interaction_method=clustering_method # type: ignore
                 )
                 
                 # Apply clustering to both years

@@ -130,6 +130,7 @@ def classify_defect_pressure_status(failure_pressure_mpa, safe_pressure_mpa,
         'pressure_margin_pct': ((safe_pressure_mpa - analysis_pressure_mpa) / analysis_pressure_mpa * 100) if analysis_pressure_mpa > 0 else 0
     }
 
+
 def create_pressure_based_summary_stats(enhanced_df, analysis_pressure_mpa, min_allowable_pressure_mpa):
     """
     Create summary statistics for pressure-based assessment.
@@ -286,6 +287,67 @@ def calculate_b31g(defect_depth_pct, defect_length_mm, pipe_diameter_mm, wall_th
         • note: Explanation if invalid or which formulation was used
     """
 
+    # Validate inputs
+    if pipe_diameter_mm <= 0:
+        return {
+            "method": "B31G Original Level-1",
+            "safe": False,
+            "failure_pressure_mpa": 0.0,
+            "safe_pressure_mpa": 0.0,
+            "remaining_strength_pct": 0.0,
+            "folias_factor_M": None,
+            "flaw_type_applied": "N/A",
+            "note": f"Invalid pipe diameter: {pipe_diameter_mm}mm. Must be positive."
+        }
+    
+    if wall_thickness_mm <= 0:
+        return {
+            "method": "B31G Original Level-1",
+            "safe": False,
+            "failure_pressure_mpa": 0.0,
+            "safe_pressure_mpa": 0.0,
+            "remaining_strength_pct": 0.0,
+            "folias_factor_M": None,
+            "flaw_type_applied": "N/A",
+            "note": f"Invalid wall thickness: {wall_thickness_mm}mm. Must be positive."
+        }
+    
+    if defect_length_mm <= 0:
+        return {
+            "method": "B31G Original Level-1",
+            "safe": False,
+            "failure_pressure_mpa": 0.0,
+            "safe_pressure_mpa": 0.0,
+            "remaining_strength_pct": 0.0,
+            "folias_factor_M": None,
+            "flaw_type_applied": "N/A",
+            "note": f"Invalid defect length: {defect_length_mm}mm. Must be positive."
+        }
+    
+    if defect_depth_pct < 0 or defect_depth_pct > 100:
+        return {
+            "method": "B31G Original Level-1",
+            "safe": False,
+            "failure_pressure_mpa": 0.0,
+            "safe_pressure_mpa": 0.0,
+            "remaining_strength_pct": 0.0,
+            "folias_factor_M": None,
+            "flaw_type_applied": "N/A",
+            "note": f"Invalid defect depth: {defect_depth_pct}%. Must be between 0 and 100."
+        }
+    
+    if smys_mpa <= 0:
+        return {
+            "method": "B31G Original Level-1",
+            "safe": False,
+            "failure_pressure_mpa": 0.0,
+            "safe_pressure_mpa": 0.0,
+            "remaining_strength_pct": 0.0,
+            "folias_factor_M": None,
+            "flaw_type_applied": "N/A",
+            "note": f"Invalid SMYS: {smys_mpa} MPa. Must be positive."
+        }
+
     # 1. Convert defect depth percentage → absolute depth (mm)
     defect_depth_mm = (defect_depth_pct / 100.0) * wall_thickness_mm
 
@@ -412,6 +474,32 @@ def calculate_modified_b31g(defect_depth_pct, defect_length_mm, pipe_diameter_mm
         • d_over_t_ratio (float): d/t ratio (None if invalid).
         • note (str): Explanation if invalid or other relevant info.
     """
+
+    if pipe_diameter_mm <= 0 or wall_thickness_mm <= 0 or defect_length_mm <= 0 or smys_mpa <= 0:
+        return {
+            "method": "Modified B31G (0.85dL)",
+            "safe": False,
+            "failure_pressure_mpa": 0.0,
+            "safe_pressure_mpa": 0.0,
+            "remaining_strength_pct": 0.0,
+            "folias_factor_M": None,
+            "z_parameter": None,
+            "d_over_t_ratio": None,
+            "note": "Invalid input parameters: all dimensional values must be positive"
+        }
+    
+    if defect_depth_pct < 0 or defect_depth_pct > 100:
+        return {
+            "method": "Modified B31G (0.85dL)",
+            "safe": False,
+            "failure_pressure_mpa": 0.0,
+            "safe_pressure_mpa": 0.0,
+            "remaining_strength_pct": 0.0,
+            "folias_factor_M": None,
+            "z_parameter": None,
+            "d_over_t_ratio": None,
+            "note": f"Invalid defect depth: {defect_depth_pct}%. Must be between 0 and 100."
+        }
 
     # Depth to thickness ratio (d/t)
     defect_depth_mm = (defect_depth_pct / 100.0) * wall_thickness_mm
@@ -550,6 +638,29 @@ def calculate_simplified_effective_area_method(defect_depth_pct, defect_length_m
     Returns:
     - Dict with results including failure pressure and safe pressure
     """
+
+    if pipe_diameter_mm <= 0 or wall_thickness_mm <= 0 or defect_length_mm <= 0 or defect_width_mm < 0 or smys_mpa <= 0:
+        return {
+            "method": "RSTRENG (Simplified)",
+            "safe": False,
+            "failure_pressure_mpa": 0.0,
+            "safe_pressure_mpa": 0.0,
+            "remaining_strength_pct": 0.0,
+            "folias_factor_M": None,
+            "note": "Invalid input parameters: all dimensional values must be positive (width can be 0)"
+        }
+    
+    if defect_depth_pct < 0 or defect_depth_pct > 100:
+        return {
+            "method": "RSTRENG (Simplified)",
+            "safe": False,
+            "failure_pressure_mpa": 0.0,
+            "safe_pressure_mpa": 0.0,
+            "remaining_strength_pct": 0.0,
+            "folias_factor_M": None,
+            "note": f"Invalid defect depth: {defect_depth_pct}%. Must be between 0 and 100."
+        }
+
     # Convert depth from percentage to actual depth
     defect_depth_mm = (defect_depth_pct / 100.0) * wall_thickness_mm
     
@@ -1037,9 +1148,9 @@ def create_joint_assessment_visualization(joint_summary, method='b31g', metric='
     # Add pipeline segments as bars
     fig.add_trace(go.Bar(
         x=viz_data['joint_start'],
-        y=[50] * len(viz_data),  # Fixed height
+        y=[50] * len(viz_data), 
         width=viz_data['joint length [m]'],
-        base=0,  # Start at y=0
+        base=0,  
         marker=dict(
             color=color_values,
             colorscale=colorscale,
@@ -1775,7 +1886,7 @@ def render_corrosion_assessment_view():
             - Original defect data: {len(defects_df.columns)} columns
             - New assessment columns: {len(enhanced_df.columns) - len(defects_df.columns)} columns
             - Assessment methods: B31G Original, Modified B31G (0.85dL), RSTRENG (Simplified)
-            - Pressure analysis: Analysis Pressure = {analysis_pressure_mpa:.1f} MPa, Min Allowable = {min_allowable_pressure_mpa:.1f} MPa
+            - Pressure analysis: Analysis Pressure = {analysis_pressure_mpa:.1f} MPa, Min Allowable = {max_allowable_pressure_mpa:.1f} MPa
             - Wall thickness: Joint-specific values extracted from dataset
         """)
         

@@ -1,5 +1,4 @@
 # column_mapping.py
-
 from fuzzywuzzy import process
 
 # ------------------------------------------------------------------------
@@ -119,7 +118,7 @@ def suggest_column_mapping(df):
 
         # 4. Fuzzy matching fallback
         if std_col not in mapping:
-            match, score = process.extractOne(std_col, file_columns)
+            match, score = process.extractOne(std_col, file_columns) # type: ignore
             if score and score > 70:
                 mapping[std_col] = match
             else:

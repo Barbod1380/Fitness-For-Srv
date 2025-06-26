@@ -82,11 +82,8 @@ def correct_negative_growth_rates(matches_df, k=3, joint_tolerance=20):
             X_positive = scaler.fit_transform(nearby_positive[features])
             
             # Extract features from the negative defect Series correctly
-            neg_features = []
-            for feature in features:
-                neg_features.append(neg_defect[feature])
-            
-            X_negative = scaler.transform([neg_features])  # Pass as list, not Series
+            neg_features = [neg_defect[feature] for feature in features]
+            X_negative = scaler.transform([neg_features]) 
 
             # Find k nearest neighbors
             k_value = min(k, len(nearby_positive))
@@ -100,11 +97,37 @@ def correct_negative_growth_rates(matches_df, k=3, joint_tolerance=20):
             
             # ENHANCEMENT: Weight by joint distance (closer joints get higher weight)
             weights = []
-            for similar_idx in similar_defect_indices:
-                joint_distance = abs(nearby_positive.loc[similar_idx, 'joint number'] - target_joint)
-                # Inverse distance weighting (closer joints get higher weight)
-                weight = 1.0 / (1.0 + joint_distance * 0.1)  # 0.1 is scaling factor
-                weights.append(weight)
+            for i, similar_idx in enumerate(similar_defect_indices):
+                similar_defect = nearby_positive.loc[similar_idx]
+                
+                # Factor 1: Joint distance (closer joints get higher weight)
+                joint_distance = abs(similar_defect['joint number'] - target_joint)
+                joint_weight = 1.0 / (1.0 + joint_distance * 0.1)  # Decay factor of 0.1
+                
+                # Factor 2: Feature distance (from KNN)
+                feature_distance = distances[0][i]
+                feature_weight = 1.0 / (1.0 + feature_distance)
+                
+                # Factor 3: Depth similarity (similar depths are more relevant)
+                depth_diff = abs(similar_defect['old_depth_pct'] - neg_defect['old_depth_pct'])
+                depth_weight = 1.0 / (1.0 + depth_diff * 0.05)  # Decay factor of 0.05
+                
+                # Factor 4: Size similarity (similar sized defects grow similarly)
+                if 'length [mm]' in features:
+                    length_diff = abs(similar_defect['length [mm]'] - neg_defect['length [mm]'])
+                    size_weight = 1.0 / (1.0 + length_diff * 0.01)  # Decay factor of 0.01
+                else:
+                    size_weight = 1.0
+                
+                # Combine weights with different importance factors
+                combined_weight = (
+                    0.3 * joint_weight +      # 30% importance to joint proximity
+                    0.3 * feature_weight +    # 30% importance to overall feature similarity
+                    0.25 * depth_weight +     # 25% importance to depth similarity
+                    0.15 * size_weight        # 15% importance to size similarity
+                )
+                
+                weights.append(combined_weight)
             
             # Normalize weights
             weights = np.array(weights)
@@ -115,11 +138,12 @@ def correct_negative_growth_rates(matches_df, k=3, joint_tolerance=20):
             
             # Calculate weighted average growth rate
             growth_rates = nearby_positive.loc[similar_defect_indices, 'growth_rate_pct_per_year'].values
+            
             avg_growth_pct = np.average(growth_rates, weights=weights)
             
             year_diff = neg_defect['new_year'] - neg_defect['old_year']
 
-            # FIX: Store correction data more safely
+            # Store correction data 
             corrections[neg_idx] = {
                 'growth_rate_pct_per_year': float(avg_growth_pct),
                 'depth_change_pct': float(avg_growth_pct * year_diff),
