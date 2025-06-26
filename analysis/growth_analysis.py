@@ -1,5 +1,7 @@
 import pandas as pd
 import numpy as np
+from sklearn.preprocessing import StandardScaler
+from sklearn.neighbors import NearestNeighbors
 
 def correct_negative_growth_rates(matches_df, k=3, joint_tolerance=20):
     """
@@ -53,10 +55,6 @@ def correct_negative_growth_rates(matches_df, k=3, joint_tolerance=20):
     corrections = {}
 
     try:
-        # Import required libraries
-        from sklearn.preprocessing import StandardScaler
-        from sklearn.neighbors import NearestNeighbors
-        
         # NEW: Process each negative growth defect individually with nearby joint search
         for neg_idx, neg_defect in negative_growth.iterrows():
             target_joint = neg_defect['joint number']

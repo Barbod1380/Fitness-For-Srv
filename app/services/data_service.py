@@ -80,7 +80,7 @@ def get_dataset(year):
     - Dictionary with joints_df, defects_df, and pipe_diameter
     """
     datasets = get_state('datasets', {})
-    return datasets.get(year, None)
+    return datasets.get(year, None) # type: ignore
 
 def get_available_years():
     """
@@ -90,7 +90,7 @@ def get_available_years():
     - List of years sorted in ascending order
     """
     datasets = get_state('datasets', {})
-    return sorted(datasets.keys())
+    return sorted(datasets.keys()) # type: ignore
 
 def get_defect_dimensions(defects_df):
     """

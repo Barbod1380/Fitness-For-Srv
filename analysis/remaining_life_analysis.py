@@ -2,7 +2,9 @@ import pandas as pd
 import numpy as np
 from typing import Dict
 import streamlit as st
-from utils.validation_utils import *
+from utils import get_wall_thickness_for_defect, create_wall_thickness_lookup
+from app.views.corrosion import calculate_b31g, calculate_modified_b31g, calculate_simplified_effective_area_method
+    
 
 def find_similar_defects(target_defect: pd.Series, historical_matches_df: pd.DataFrame, joint_tolerance = 5) -> pd.DataFrame:
     """
@@ -65,13 +67,11 @@ def estimate_growth_rate_for_new_defect(new_defect: pd.Series, historical_matche
     # Find similar defects
     joint_tolerance = 5
     similar_defects = find_similar_defects(new_defect, historical_matches_df, joint_tolerance)
-    
-    while(len(similar_defects) < min_similar_defects):
+
+    while len(similar_defects) < min_similar_defects and joint_tolerance <= 20:
         joint_tolerance += 1
-        find_similar_defects(new_defect, historical_matches_df, joint_tolerance)
-        
-        if(joint_tolerance > 20):
-            break
+        similar_defects = find_similar_defects(new_defect, historical_matches_df, joint_tolerance)
+    
     
     # Calculate statistical measures from similar defects
     length_growth_rates = similar_defects.get('length_growth_rate_mm_per_year', pd.Series()).dropna()
@@ -238,8 +238,7 @@ def calculate_iterative_failure_pressure(initial_depth_pct: float, initial_lengt
     Returns:
     - Dictionary with failure pressures over time for each method
     """
-    from app.views.corrosion import calculate_b31g, calculate_modified_b31g, calculate_simplified_effective_area_method
-    
+
     years = list(range(0, max_years + 1))
     results = {
         'years': years,
@@ -574,14 +573,14 @@ def enhanced_calculate_remaining_life_analysis(comparison_results: Dict, joints_
                 statuses = [a[status_key] for a in all_analyses]
             
             if lives:
-                summary_stats[f'{method}_avg_remaining_life'] = np.mean(lives)
+                summary_stats[f'{method}_avg_remaining_life'] = np.mean(lives) # type: ignore
                 summary_stats[f'{method}_min_remaining_life'] = np.min(lives)
             
             # Count status distribution
             status_counts = {}
             for status in statuses:
                 status_counts[status] = status_counts.get(status, 0) + 1
-            summary_stats[f'{method}_status_distribution'] = status_counts
+            summary_stats[f'{method}_status_distribution'] = status_counts # type: ignore
         
         results['summary_statistics'] = summary_stats
     

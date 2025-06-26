@@ -3,7 +3,10 @@ Router service for the Pipeline Analysis application.
 """
 import streamlit as st
 from app.services.navigation_service import get_current_page
-from app.views import *
+from app.views import (
+    render_upload_view, render_home_view, render_single_analysis_view, 
+    render_comparison_view, render_corrosion_assessment_view
+)
 from app.views.failure_prediction import render_failure_prediction_view
 
 

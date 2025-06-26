@@ -5,14 +5,6 @@ import pandas as pd
 from plotly.subplots import make_subplots
 import streamlit as st
 
-# Add this to analysis/defect_analysis.py
-
-import numpy as np
-import plotly.graph_objects as go
-import plotly.express as px
-import pandas as pd
-from plotly.subplots import make_subplots
-
 def feature_cat_normalized(length_norm, width_norm):
     """
     Categorizes features based on normalized length and width (already divided by GeoParA).
