@@ -563,9 +563,7 @@ def display_comparison_visualization_tabs(comparison_results, earlier_year, late
                             })
                         
                         comparison_df = pd.DataFrame(comparison_rows)
-                        st.markdown('<div class="dataframe-container">', unsafe_allow_html=True)
                         st.dataframe(comparison_df, use_container_width=True, hide_index=True)
-                        st.markdown('</div>', unsafe_allow_html=True)
                     
                     with enhanced_subtabs[1]:
                         st.markdown("#### Detailed Results by Defect")
@@ -610,11 +608,9 @@ def display_comparison_visualization_tabs(comparison_results, earlier_year, late
                                 'rstreng_pressure_remaining_life': 'RSTRENG Life (yrs)',
                                 'rstreng_pressure_status': 'RSTRENG Status'
                             }
-                            display_matched = display_matched.rename(columns=column_rename)
-                            
-                            st.markdown('<div class="dataframe-container">', unsafe_allow_html=True)
+                            display_matched = display_matched.rename(columns=column_rename)                            
+
                             st.dataframe(display_matched, use_container_width=True, hide_index=True)
-                            st.markdown('</div>', unsafe_allow_html=True)
                         
                         # Show results for new defects (estimated growth)
                         new_results = enhanced_remaining_life_results['new_defects_analysis']
@@ -658,9 +654,7 @@ def display_comparison_visualization_tabs(comparison_results, earlier_year, late
                             }
                             display_new = display_new.rename(columns=column_rename)
                             
-                            st.markdown('<div class="dataframe-container">', unsafe_allow_html=True)
                             st.dataframe(display_new, use_container_width=True, hide_index=True)
-                            st.markdown('</div>', unsafe_allow_html=True)
                     
                     with enhanced_subtabs[2]:
                         st.markdown("#### Pipeline Overview")
@@ -1326,15 +1320,12 @@ def render_comparison_view():
                     with st.expander("Detailed Defect Lists", expanded=False):
                         if not comparison_results['matches_df'].empty:
                             st.markdown("<div class='section-header'>Common Defects</div>", unsafe_allow_html=True)
-                            st.markdown('<div class="dataframe-container">', unsafe_allow_html=True)
                             st.dataframe(comparison_results['matches_df'], use_container_width=True)
-                            st.markdown('</div>', unsafe_allow_html=True)
                         
                         if not comparison_results['new_defects'].empty:
                             st.markdown("<div class='section-header' style='margin-top:20px;'>New Defects</div>", unsafe_allow_html=True)
-                            st.markdown('<div class="dataframe-container">', unsafe_allow_html=True)
                             st.dataframe(comparison_results['new_defects'], use_container_width=True)
-                            st.markdown('</div>', unsafe_allow_html=True)
+
                 
                 except Exception as e:
                     info_box(
@@ -1363,15 +1354,11 @@ def render_comparison_view():
                 with st.expander("Detailed Defect Lists", expanded=False):
                     if not comparison_results['matches_df'].empty:
                         st.markdown("<div class='section-header'>Common Defects</div>", unsafe_allow_html=True)
-                        st.markdown('<div class="dataframe-container">', unsafe_allow_html=True)
                         st.dataframe(comparison_results['matches_df'], use_container_width=True)
-                        st.markdown('</div>', unsafe_allow_html=True)
                     
                     if not comparison_results['new_defects'].empty:
                         st.markdown("<div class='section-header' style='margin-top:20px;'>New Defects</div>", unsafe_allow_html=True)
-                        st.markdown('<div class="dataframe-container">', unsafe_allow_html=True)
                         st.dataframe(comparison_results['new_defects'], use_container_width=True)
-                        st.markdown('</div>', unsafe_allow_html=True)
             else:
                 # Years don't match, ask user to re-run comparison
                 st.info("You've changed the years for comparison. Please click 'Compare Defects' to analyze the new year combination.")

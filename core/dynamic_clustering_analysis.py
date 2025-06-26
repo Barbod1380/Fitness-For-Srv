@@ -1,4 +1,3 @@
-# Create new file: core/dynamic_clustering_analysis.py
 """
 Dynamic clustering simulation for pipeline defects.
 Simulates defect growth over time and detects when clustering will occur,
@@ -213,17 +212,17 @@ class DynamicClusteringAnalyzer:
                 # Project depth
                 if 'depth_growth_pct_per_year' in growth_rates:
                     new_depth = defect['depth [%]'] + (growth_rates['depth_growth_pct_per_year'] * target_time)
-                    projected.loc[idx, 'depth [%]'] = min(100, max(0, new_depth))
+                    projected.loc[idx, 'depth [%]'] = min(100, max(0, new_depth)) # type: ignore
                 
                 # Project length
                 if 'length_growth_mm_per_year' in growth_rates:
                     new_length = defect['length [mm]'] + (growth_rates['length_growth_mm_per_year'] * target_time)
-                    projected.loc[idx, 'length [mm]'] = max(defect['length [mm]'], new_length)
+                    projected.loc[idx, 'length [mm]'] = max(defect['length [mm]'], new_length) # type: ignore
                 
                 # Project width
                 if 'width_growth_mm_per_year' in growth_rates:
                     new_width = defect['width [mm]'] + (growth_rates['width_growth_mm_per_year'] * target_time)
-                    projected.loc[idx, 'width [mm]'] = max(defect['width [mm]'], new_width)
+                    projected.loc[idx, 'width [mm]'] = max(defect['width [mm]'], new_width) # type: ignore
         
         return projected
     
