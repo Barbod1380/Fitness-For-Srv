@@ -1813,49 +1813,69 @@ def render_corrosion_assessment_view():
  
         # Enhanced Dataset Preview Section
         st.markdown("<div class='section-header'>Enhanced Dataset Preview</div>", unsafe_allow_html=True)
-        st.markdown("The following shows the first 10 rows with the newly computed corrosion assessment and pressure analysis columns:")
-        
+        st.markdown("The following shows the first 10 rows with the newly computed corrosion assessment, pressure analysis, and ERF columns:")
+
         # Select key columns for display
         display_cols = ['log dist. [m]', 'joint number', 'depth [%]', 'length [mm]', 'width [mm]', 'wall_thickness_used_mm']
-        
+
         # Add traditional assessment result columns
         assessment_cols = [
             'b31g_safe', 'b31g_failure_pressure_mpa', 'b31g_remaining_strength_pct',
             'modified_b31g_safe', 'modified_b31g_failure_pressure_mpa', 'modified_b31g_remaining_strength_pct',
             'simplified_eff_area_safe', 'simplified_eff_area_failure_pressure_mpa', 'simplified_eff_area_remaining_strength_pct'
         ]
-        
+
         # Add pressure analysis columns
         pressure_cols = [
             'b31g_operational_status', 'b31g_max_safe_pressure_mpa',
             'modified_b31g_operational_status', 'modified_b31g_max_safe_pressure_mpa',
             'simplified_eff_area_operational_status', 'simplified_eff_area_max_safe_pressure_mpa'
         ]
-        
-        preview_cols = display_cols + assessment_cols + pressure_cols
+
+        # NEW: Add ERF columns for each method
+        erf_cols = [
+            'b31g_erf',
+            'modified_b31g_erf',
+            'simplified_eff_area_erf'
+        ]
+
+        # Combine all columns
+        preview_cols = display_cols + assessment_cols + pressure_cols + erf_cols
+
         # Only include columns that actually exist
         available_preview_cols = [col for col in preview_cols if col in enhanced_df.columns]
         preview_df = enhanced_df[available_preview_cols].head(10)
-        
+
         st.dataframe(preview_df, use_container_width=True)
 
+        # Add ERF interpretation guide
+        st.markdown("#### 📊 ERF (Estimated Repair Factor) Interpretation")
+        st.markdown("""
+        **ERF = Max Allowable Pressure / Safe Working Pressure**
+        - **ERF ≤ 1.0**: ✅ Defect acceptable for normal operations
+        - **ERF > 1.0**: ⚠️ Repair required or pressure reduction needed
+        - **Higher ERF values**: More severe defects requiring immediate attention
+        """)
+
+
         st.markdown('</div>', unsafe_allow_html=True)  # Close preview container
-        
+
         # Export Section
         st.markdown("<div class='section-header'>Export Results</div>", unsafe_allow_html=True)
         download_link = create_enhanced_csv_download_link(enhanced_df, selected_year)
         st.markdown(download_link, unsafe_allow_html=True)
-        
+
         st.info(f"""
             **Export Information:**
             - Total columns in enhanced CSV: {len(enhanced_df.columns)}
             - Original defect data: {len(defects_df.columns)} columns
             - New assessment columns: {len(enhanced_df.columns) - len(defects_df.columns)} columns
             - Assessment methods: B31G Original, Modified B31G (0.85dL), RSTRENG (Simplified)
-            - Pressure analysis: Analysis Pressure = {analysis_pressure_mpa:.1f} MPa, Min Allowable = {max_allowable_pressure_mpa:.1f} MPa
+            - Pressure analysis: Analysis Pressure = {analysis_pressure_mpa:.1f} MPa, Max Allowable = {max_allowable_pressure_mpa:.1f} MPa
+            - ERF analysis: Estimated Repair Factor calculated for each method
             - Wall thickness: Joint-specific values extracted from dataset
         """)
-        
+
         st.markdown('</div>', unsafe_allow_html=True)  # Close export container
 
 
