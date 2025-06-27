@@ -12,11 +12,10 @@ from app.ui_components import create_metrics_row
 from app.services.state_manager import get_state
 from core.ffs_defect_interaction import *
 
-
 def compute_enhanced_corrosion_metrics(defects_df, joints_df, pipe_diameter_mm, smys_mpa, 
-                                     safety_factor, analysis_pressure_mpa, min_allowable_pressure_mpa):
+                                     safety_factor, analysis_pressure_mpa, max_allowable_pressure_mpa):
     """
-    Enhanced version of compute_corrosion_metrics_for_dataframe with pressure-based assessment.
+    Enhanced version of compute_corrosion_metrics_for_dataframe with pressure-based assessment and ERF.
     """
     
     # First run the standard corrosion assessment
@@ -26,7 +25,7 @@ def compute_enhanced_corrosion_metrics(defects_df, joints_df, pipe_diameter_mm, 
     
     # Add pressure analysis parameters
     enhanced_df['analysis_pressure_mpa'] = analysis_pressure_mpa
-    enhanced_df['min_allowable_pressure_mpa'] = min_allowable_pressure_mpa
+    enhanced_df['max_allowable_pressure_mpa'] = max_allowable_pressure_mpa
     
     # Initialize pressure-based assessment columns
     methods = ['b31g', 'modified_b31g', 'simplified_eff_area']
@@ -34,11 +33,12 @@ def compute_enhanced_corrosion_metrics(defects_df, joints_df, pipe_diameter_mm, 
     for method in methods:
         enhanced_df[f'{method}_pressure_status'] = 'UNKNOWN'
         enhanced_df[f'{method}_operational_status'] = 'UNKNOWN'
-        enhanced_df[f'{method}_can_operate_analysis'] = False
-        enhanced_df[f'{method}_can_operate_minimum'] = False
+        enhanced_df[f'{method}_can_operate_at_analysis_pressure'] = False
+        enhanced_df[f'{method}_can_operate_at_max_allowable_pressure'] = False
         enhanced_df[f'{method}_recommended_action'] = ''
-        enhanced_df[f'{method}_max_safe_pressure_mpa'] = 0.0
+        enhanced_df[f'{method}_max_safe_operating_pressure_mpa'] = 0.0
         enhanced_df[f'{method}_pressure_margin_pct'] = 0.0
+        enhanced_df[f'{method}_erf'] = 0.0  # Add ERF column
     
     # Perform pressure-based assessment for each defect and method
     for idx, row in enhanced_df.iterrows():
@@ -50,24 +50,33 @@ def compute_enhanced_corrosion_metrics(defects_df, joints_df, pipe_diameter_mm, 
             if is_safe and failure_pressure > 0 and safe_pressure > 0:
                 pressure_assessment = classify_defect_pressure_status(
                     failure_pressure, safe_pressure, 
-                    analysis_pressure_mpa, min_allowable_pressure_mpa
+                    analysis_pressure_mpa, max_allowable_pressure_mpa
                 )
                 
-                # Update dataframe with assessment results
-                for key, value in pressure_assessment.items():
-                    column_name = f'{method}_{key}'
-                    if column_name in enhanced_df.columns:
-                        enhanced_df.loc[idx, column_name] = value
+                # Calculate ERF = MAOP / Safe Working Pressure
+                erf_value = max_allowable_pressure_mpa / safe_pressure if safe_pressure > 0 else float('inf')
+                
+                # Direct assignment of all assessment results
+                enhanced_df.loc[idx, f'{method}_pressure_status'] = pressure_assessment['pressure_status']
+                enhanced_df.loc[idx, f'{method}_operational_status'] = pressure_assessment['operational_status']
+                enhanced_df.loc[idx, f'{method}_can_operate_at_analysis_pressure'] = pressure_assessment['can_operate_at_analysis_pressure']
+                enhanced_df.loc[idx, f'{method}_can_operate_at_max_allowable_pressure'] = pressure_assessment['can_operate_at_max_allowable_pressure']
+                enhanced_df.loc[idx, f'{method}_recommended_action'] = pressure_assessment['recommended_action']
+                enhanced_df.loc[idx, f'{method}_max_safe_operating_pressure_mpa'] = pressure_assessment['max_safe_operating_pressure_mpa']
+                enhanced_df.loc[idx, f'{method}_pressure_margin_pct'] = pressure_assessment['pressure_margin_pct']
+                enhanced_df.loc[idx, f'{method}_erf'] = erf_value  # Add ERF value
             else:
                 # Handle failed calculations
                 enhanced_df.loc[idx, f'{method}_pressure_status'] = 'CALCULATION_ERROR'
                 enhanced_df.loc[idx, f'{method}_operational_status'] = 'UNKNOWN'
                 enhanced_df.loc[idx, f'{method}_recommended_action'] = 'Review defect parameters'
+                enhanced_df.loc[idx, f'{method}_max_safe_operating_pressure_mpa'] = 0.0
+                enhanced_df.loc[idx, f'{method}_pressure_margin_pct'] = 0.0
+                enhanced_df.loc[idx, f'{method}_erf'] = float('inf')  # ERF is infinite for failed calculations
     
     return enhanced_df
 
-
-def classify_defect_pressure_status(failure_pressure_mpa, safe_pressure_mpa, analysis_pressure_mpa, min_allowable_pressure_mpa):
+def classify_defect_pressure_status(failure_pressure_mpa, safe_pressure_mpa, analysis_pressure_mpa, max_allowable_pressure_mpa):
     """
     Classify defect based on pressure-based criteria.
     
@@ -75,7 +84,7 @@ def classify_defect_pressure_status(failure_pressure_mpa, safe_pressure_mpa, ana
     - failure_pressure_mpa: Calculated failure pressure
     - safe_pressure_mpa: Safe operating pressure (with safety factor)
     - analysis_pressure_mpa: Current/proposed operating pressure
-    - min_allowable_pressure_mpa: Minimum pressure needed for operations
+    - max_allowable_pressure_mpa: Maximum allowable operating pressure (MAOP)
     
     Returns:
     - Dict with classification results
@@ -87,13 +96,15 @@ def classify_defect_pressure_status(failure_pressure_mpa, safe_pressure_mpa, ana
             'pressure_status': 'CALCULATION_ERROR',
             'operational_status': 'UNKNOWN',
             'can_operate_at_analysis_pressure': False,
-            'can_operate_at_min_pressure': False,
-            'recommended_action': 'Review calculation inputs'
+            'can_operate_at_max_allowable_pressure': False,
+            'recommended_action': 'Review calculation inputs',
+            'max_safe_operating_pressure_mpa': 0.0,
+            'pressure_margin_pct': 0.0
         }
     
-    # Determine if defect is safe at analysis pressure
+    # Determine if defect is safe at different pressures
     safe_at_analysis = safe_pressure_mpa >= analysis_pressure_mpa
-    safe_at_minimum = safe_pressure_mpa >= min_allowable_pressure_mpa
+    safe_at_max_allowable = safe_pressure_mpa >= max_allowable_pressure_mpa
     
     # Classify pressure status
     if safe_at_analysis:
@@ -108,7 +119,7 @@ def classify_defect_pressure_status(failure_pressure_mpa, safe_pressure_mpa, ana
     if safe_at_analysis:
         operational_status = 'ACCEPTABLE'
         recommended_action = 'Normal operations'
-    elif safe_at_minimum:
+    elif safe_at_max_allowable:
         operational_status = 'PRESSURE_DERATION_REQUIRED'
         max_safe_pressure = safe_pressure_mpa * 0.95  # 5% additional margin
         recommended_action = f'Reduce pressure to ≤{max_safe_pressure:.1f} MPa'
@@ -119,25 +130,27 @@ def classify_defect_pressure_status(failure_pressure_mpa, safe_pressure_mpa, ana
     # Calculate maximum safe operating pressure
     max_safe_operating_pressure = safe_pressure_mpa * 0.95  # 5% margin
     
+    # Calculate pressure margin
+    pressure_margin = ((safe_pressure_mpa - analysis_pressure_mpa) / analysis_pressure_mpa * 100) if analysis_pressure_mpa > 0 else 0
+    
     return {
         'pressure_status': pressure_status,
         'operational_status': operational_status,
         'can_operate_at_analysis_pressure': safe_at_analysis,
-        'can_operate_at_min_pressure': safe_at_minimum,
+        'can_operate_at_max_allowable_pressure': safe_at_max_allowable,
         'recommended_action': recommended_action,
         'max_safe_operating_pressure_mpa': max_safe_operating_pressure,
-        'pressure_margin_pct': ((safe_pressure_mpa - analysis_pressure_mpa) / analysis_pressure_mpa * 100) if analysis_pressure_mpa > 0 else 0
+        'pressure_margin_pct': pressure_margin
     }
 
-
-def create_pressure_based_summary_stats(enhanced_df, analysis_pressure_mpa, min_allowable_pressure_mpa):
+def create_pressure_based_summary_stats(enhanced_df, analysis_pressure_mpa, max_allowable_pressure_mpa):
     """
-    Create summary statistics for pressure-based assessment.
+    Create summary statistics for pressure-based assessment including ERF metrics.
     """
     methods = ['b31g', 'modified_b31g', 'simplified_eff_area']
     summary = {
         'analysis_pressure_mpa': analysis_pressure_mpa,
-        'min_allowable_pressure_mpa': min_allowable_pressure_mpa,
+        'max_allowable_pressure_mpa': max_allowable_pressure_mpa,
         'total_defects': len(enhanced_df)
     }
     
@@ -147,27 +160,53 @@ def create_pressure_based_summary_stats(enhanced_df, analysis_pressure_mpa, min_
         pressure_status_counts = enhanced_df[f'{method}_pressure_status'].value_counts().to_dict()
         
         # Calculate key metrics
-        can_operate_analysis = enhanced_df[f'{method}_can_operate_analysis'].sum()
-        can_operate_minimum = enhanced_df[f'{method}_can_operate_minimum'].sum()
+        can_operate_analysis = enhanced_df[f'{method}_can_operate_at_analysis_pressure'].sum()
+        can_operate_max_allowable = enhanced_df[f'{method}_can_operate_at_max_allowable_pressure'].sum()
         
         # Calculate percentages
         total_valid = enhanced_df[enhanced_df[f'{method}_safe'] == True].shape[0]
         pct_safe_analysis = (can_operate_analysis / total_valid * 100) if total_valid > 0 else 0
-        pct_safe_minimum = (can_operate_minimum / total_valid * 100) if total_valid > 0 else 0
+        pct_safe_max_allowable = (can_operate_max_allowable / total_valid * 100) if total_valid > 0 else 0
         
         # Find maximum safe operating pressure for the pipeline
-        valid_pressures = enhanced_df[enhanced_df[f'{method}_safe'] == True][f'{method}_max_safe_pressure_mpa']
+        valid_pressures = enhanced_df[enhanced_df[f'{method}_safe'] == True][f'{method}_max_safe_operating_pressure_mpa']
         max_pipeline_pressure = valid_pressures.min() if not valid_pressures.empty else 0
+        
+        # ERF statistics - exclude infinite values for statistics
+        valid_erf_data = enhanced_df[
+            (enhanced_df[f'{method}_safe'] == True) & 
+            (enhanced_df[f'{method}_erf'] != float('inf')) &
+            (enhanced_df[f'{method}_erf'] > 0)
+        ][f'{method}_erf']
+        
+        if not valid_erf_data.empty:
+            erf_max = valid_erf_data.max()
+            erf_min = valid_erf_data.min()
+            erf_mean = valid_erf_data.mean()
+            erf_greater_than_1 = (valid_erf_data > 1.0).sum()
+            erf_less_than_1 = (valid_erf_data <= 1.0).sum()
+            pct_erf_greater_than_1 = (erf_greater_than_1 / len(valid_erf_data) * 100) if len(valid_erf_data) > 0 else 0
+        else:
+            erf_max = erf_min = erf_mean = 0.0
+            erf_greater_than_1 = erf_less_than_1 = 0
+            pct_erf_greater_than_1 = 0.0
         
         summary[method] = {
             'operational_status_counts': operational_counts,
             'pressure_status_counts': pressure_status_counts,
             'defects_safe_at_analysis_pressure': can_operate_analysis,
-            'defects_safe_at_minimum_pressure': can_operate_minimum,
+            'defects_within_maop': can_operate_max_allowable,
             'pct_safe_at_analysis_pressure': pct_safe_analysis,
-            'pct_safe_at_minimum_pressure': pct_safe_minimum,
+            'pct_within_maop': pct_safe_max_allowable,
             'max_pipeline_operating_pressure_mpa': max_pipeline_pressure,
-            'total_valid_defects': total_valid
+            'total_valid_defects': total_valid,
+            # ERF Statistics
+            'erf_max': erf_max,
+            'erf_min': erf_min,
+            'erf_mean': erf_mean,
+            'defects_erf_greater_than_1': erf_greater_than_1,
+            'defects_erf_less_equal_1': erf_less_than_1,
+            'pct_erf_requires_action': pct_erf_greater_than_1
         }
     
     return summary
@@ -212,7 +251,7 @@ def create_pressure_assessment_visualization(enhanced_df, method='b31g'):
             hover_text.append(
                 f"<b>Location:</b> {row['log dist. [m]']:.2f}m<br>"
                 f"<b>Safe Pressure:</b> {row[f'{method}_safe_pressure_mpa']:.1f} MPa<br>"
-                f"<b>Max Safe Operating:</b> {row[f'{method}_max_safe_pressure_mpa']:.1f} MPa<br>"
+                f"<b>Max Safe Operating:</b> {row[f'{method}_max_safe_operating_pressure_mpa']:.1f} MPa<br>"
                 f"<b>Pressure Margin:</b> {row[f'{method}_pressure_margin_pct']:.1f}%<br>"
                 f"<b>Status:</b> {status.replace('_', ' ').title()}<br>"
                 f"<b>Action:</b> {row[f'{method}_recommended_action']}"
@@ -230,7 +269,7 @@ def create_pressure_assessment_visualization(enhanced_df, method='b31g'):
     
     # Add horizontal lines for pressure references
     analysis_pressure = enhanced_df['analysis_pressure_mpa'].iloc[0]
-    min_allowable = enhanced_df['min_allowable_pressure_mpa'].iloc[0]
+    max_allowable = enhanced_df['max_allowable_pressure_mpa'].iloc[0]
     
     fig.add_hline(
         y=analysis_pressure, 
@@ -240,10 +279,10 @@ def create_pressure_assessment_visualization(enhanced_df, method='b31g'):
     )
     
     fig.add_hline(
-        y=min_allowable,
+        y=max_allowable,
         line_dash="dot", 
         line_color="purple",
-        annotation_text=f"Min Allowable: {min_allowable:.1f} MPa"
+        annotation_text=f"Max Allowable: {max_allowable:.1f} MPa"
     )
     
     fig.update_layout(
@@ -256,7 +295,6 @@ def create_pressure_assessment_visualization(enhanced_df, method='b31g'):
     )
     
     return fig
-
 
 
 def calculate_b31g(defect_depth_pct, defect_length_mm, pipe_diameter_mm, wall_thickness_mm, smys_mpa, safety_factor=1.39):
@@ -1422,6 +1460,7 @@ def aggregate_assessment_results_by_joint(enhanced_df, joints_df, pipe_diameter_
     
     return joint_summary
 
+
 def render_corrosion_assessment_view():
 
     # Check if datasets are available
@@ -1606,19 +1645,20 @@ def render_corrosion_assessment_view():
             index=0,
             key="missing_wt_action"
         )
-    
+
+
     if st.button("Perform Enhanced Corrosion Assessment", key="perform_enhanced_assessment", use_container_width=True):
         with st.spinner("Computing enhanced corrosion metrics with pressure analysis..."):
             try:
                 # Compute enhanced corrosion metrics
                 enhanced_df = compute_enhanced_corrosion_metrics(
                     defects_df, joints_df, pipe_diameter_mm, smys_mpa, safety_factor,
-                    analysis_pressure_mpa, max_allowable_pressure_mpa
+                    analysis_pressure_mpa, max_allowable_pressure_mpa  # FIXED parameter name
                 )
 
                 # Create pressure-based summary
                 pressure_summary = create_pressure_based_summary_stats(
-                    enhanced_df, analysis_pressure_mpa, max_allowable_pressure_mpa
+                    enhanced_df, analysis_pressure_mpa, max_allowable_pressure_mpa  # FIXED parameter name
                 )
                 
                 # Store results in session state
@@ -1769,69 +1809,9 @@ def render_corrosion_assessment_view():
                 # Visualization
                 st.markdown("#### Pressure Assessment Visualization")
                 pressure_viz = create_pressure_assessment_visualization(enhanced_df, method)
-                st.plotly_chart(pressure_viz, use_container_width=True)
-        
-        # Overall recommendations
-        st.markdown("#### 🎯 Operational Recommendations")
-        
-        # Find the most conservative method result
-        min_pipeline_pressure = min(
-            pressure_summary[method]['max_pipeline_operating_pressure_mpa'] 
-            for method in methods
-        )
-        
-        most_conservative_method = None
-        for method in methods:
-            if pressure_summary[method]['max_pipeline_operating_pressure_mpa'] == min_pipeline_pressure:
-                most_conservative_method = method.replace('_', ' ').title()
-                break
-        
-        # Analysis vs maximum pressure validation
-        if analysis_pressure_mpa > max_allowable_pressure_mpa:
-            st.error("❌ **Parameter Error**: Analysis pressure cannot exceed Maximum Allowable Operating Pressure (MAOP)")
-        
-        # Main recommendations
-        if min_pipeline_pressure >= analysis_pressure_mpa:
-            # Check if analysis pressure is within MAOP
-            if analysis_pressure_mpa <= max_allowable_pressure_mpa:
-                margin = min_pipeline_pressure - analysis_pressure_mpa
-                st.success(f"""
-                ✅ **SAFE TO OPERATE**
-                - Pipeline can safely operate at {analysis_pressure_mpa:.1f} MPa ({analysis_pressure_mpa * 145.038:.0f} psi)
-                - Safety margin: {margin:.1f} MPa ({margin * 145.038:.0f} psi)
-                - Within MAOP limit of {max_allowable_pressure_mpa:.1f} MPa
-                - Limiting method: {most_conservative_method}
-                """)
-            else:
-                st.warning(f"""
-                ⚠️ **MAOP LIMIT EXCEEDED**
-                - Analysis pressure {analysis_pressure_mpa:.1f} MPa exceeds MAOP of {max_allowable_pressure_mpa:.1f} MPa
-                - Maximum safe pressure from defects: {min_pipeline_pressure:.1f} MPa
-                - Recommend operating at MAOP: {max_allowable_pressure_mpa:.1f} MPa
-                """)
-        elif min_pipeline_pressure >= max_allowable_pressure_mpa * 0.8:  # Within 80% of MAOP
-            actual_limit = min(min_pipeline_pressure, max_allowable_pressure_mpa)
-            st.warning(f"""
-            ⚠️ **PRESSURE DERATION REQUIRED**
-            - Current analysis pressure: {analysis_pressure_mpa:.1f} MPa is NOT safe
-            - Recommended maximum pressure: {actual_limit:.1f} MPa ({actual_limit * 145.038:.0f} psi)
-            - Constraint: {'Defect calculations' if min_pipeline_pressure < max_allowable_pressure_mpa else 'MAOP limit'}
-            - Limiting method: {most_conservative_method}
-            """)
-        else:
-            st.error(f"""
-            ❌ **IMMEDIATE REPAIRS REQUIRED**
-            - Pipeline cannot safely operate at reasonable pressures
-            - Maximum safe pressure from defects: {min_pipeline_pressure:.1f} MPa ({min_pipeline_pressure * 145.038:.0f} psi)
-            - MAOP: {max_allowable_pressure_mpa:.1f} MPa ({max_allowable_pressure_mpa * 145.038:.0f} psi)
-            - Significant repairs needed before operations
-            - Limiting method: {most_conservative_method}
-            """)
-        
-        st.markdown('</div>', unsafe_allow_html=True)  # Close pressure results container
-        
+                st.plotly_chart(pressure_viz, use_container_width=True)    
+ 
         # Enhanced Dataset Preview Section
-        st.markdown('<div class="card-container" style="margin-top:20px;">', unsafe_allow_html=True)
         st.markdown("<div class='section-header'>Enhanced Dataset Preview</div>", unsafe_allow_html=True)
         st.markdown("The following shows the first 10 rows with the newly computed corrosion assessment and pressure analysis columns:")
         
@@ -1857,14 +1837,11 @@ def render_corrosion_assessment_view():
         available_preview_cols = [col for col in preview_cols if col in enhanced_df.columns]
         preview_df = enhanced_df[available_preview_cols].head(10)
         
-        st.markdown('<div class="dataframe-container">', unsafe_allow_html=True)
         st.dataframe(preview_df, use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-        
+
         st.markdown('</div>', unsafe_allow_html=True)  # Close preview container
         
         # Export Section
-        st.markdown('<div class="card" style="margin-top:20px;">', unsafe_allow_html=True)
         st.markdown("<div class='section-header'>Export Results</div>", unsafe_allow_html=True)
         download_link = create_enhanced_csv_download_link(enhanced_df, selected_year)
         st.markdown(download_link, unsafe_allow_html=True)
@@ -1880,3 +1857,63 @@ def render_corrosion_assessment_view():
         """)
         
         st.markdown('</div>', unsafe_allow_html=True)  # Close export container
+
+
+# Add this section in the Enhanced Dataset Preview area of render_corrosion_assessment_view()
+
+def display_erf_info():
+    """
+    Display information about Estimated Repair Factor (ERF) for users.
+    """
+    with st.expander("ℹ️ About Estimated Repair Factor (ERF)", expanded=False):
+        st.markdown("""
+        **Estimated Repair Factor (ERF)** is a key metric in pipeline integrity assessment:
+        
+        **Formula:** `ERF = MAOP / Safe Working Pressure`
+        
+        **Interpretation:**
+        - **ERF ≤ 1.0**: ✅ Defect is acceptable, normal operations can continue
+        - **ERF > 1.0**: ⚠️ Repair required or MAOP must be reduced
+        
+        **Physical Meaning:**
+        - ERF represents how much the pipeline's operating capacity has been reduced due to corrosion
+        - Higher ERF values indicate more severe defects requiring immediate attention
+        - ERF is another way of expressing ASME B31G assessment results
+        
+        **Examples:**
+        - ERF = 0.8: Pipeline can safely operate at 80% of MAOP
+        - ERF = 1.2: Pipeline requires repair or 20% pressure reduction
+        """)
+
+# Add this to the Enhanced Dataset Preview section after the enhanced_df is displayed
+def add_erf_summary_metrics(enhanced_df, pressure_summary):
+    """
+    Display ERF summary metrics for quick assessment.
+    """
+    st.subheader("📊 ERF Summary Statistics")
+    
+    methods = ['b31g', 'modified_b31g', 'simplified_eff_area']
+    method_names = ['B31G', 'Modified B31G', 'Simplified Eff. Area']
+    
+    cols = st.columns(3)
+    
+    for i, (method, name) in enumerate(zip(methods, method_names)):
+        with cols[i]:
+            st.metric(
+                f"{name} - Max ERF",
+                f"{pressure_summary[method]['erf_max']:.2f}",
+                delta=f"Avg: {pressure_summary[method]['erf_mean']:.2f}"
+            )
+            
+            total_defects = pressure_summary[method]['total_valid_defects']
+            requires_action = pressure_summary[method]['defects_erf_greater_than_1']
+            
+            if total_defects > 0:
+                pct_requires_action = (requires_action / total_defects * 100)
+                st.metric(
+                    "Requires Action",
+                    f"{requires_action}/{total_defects}",
+                    f"{pct_requires_action:.1f}%"
+                )
+            else:
+                st.metric("Requires Action", "0/0", "N/A")
