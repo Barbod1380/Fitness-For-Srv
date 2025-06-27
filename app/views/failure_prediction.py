@@ -1,3 +1,5 @@
+# app/views/failure_prediction.py - Enhanced with joint failure visualization
+
 import streamlit as st
 import pandas as pd
 from app.ui_components.charts import create_metrics_row
@@ -13,11 +15,16 @@ from visualization.failure_prediction_viz import (
     create_failure_comparison_chart
 )
 
+# NEW: Import joint failure visualization functions
+from visualization.joint_failure_viz import (
+    create_joint_failure_visualization,
+    create_failure_summary_card,
+    create_joint_failure_timeline_chart
+)
+
 def render_failure_prediction_view():
-    """Display the failure prediction view with timeline analysis."""
-    
-    st.markdown('<h2 class="section-header">Future Failure Prediction</h2>', unsafe_allow_html=True)
-    
+    """Display the failure prediction view with timeline analysis and joint visualization."""
+
     # Check if datasets are available
     datasets = get_state('datasets', {})
     if not datasets:
@@ -26,9 +33,6 @@ def render_failure_prediction_view():
             Please upload pipeline inspection data using the sidebar to enable failure prediction.
         """)
         return
-    
-    # Create main container
-    st.markdown('<div class="card-container">', unsafe_allow_html=True)
     
     # Dataset selection and analysis mode
     st.markdown("<div class='section-header'>Analysis Configuration</div>", unsafe_allow_html=True)
@@ -80,7 +84,6 @@ def render_failure_prediction_view():
     st.markdown('</div>', unsafe_allow_html=True)  # Close config container
     
     # Parameter input section
-    st.markdown('<div class="card-container" style="margin-top:20px;">', unsafe_allow_html=True)
     st.markdown("<div class='section-header'>Prediction Parameters</div>", unsafe_allow_html=True)
     
     # Create parameter input columns
@@ -186,11 +189,8 @@ def render_failure_prediction_view():
                 help="Safety factor for failure pressure calculation"
             )
     
-    st.markdown('</div>', unsafe_allow_html=True)  # Close parameters container
-    
-    # Analysis execution
-    st.markdown('<div class="card-container" style="margin-top:20px;">', unsafe_allow_html=True)
-    
+    st.markdown('</div>', unsafe_allow_html=True)  # Close parameters container    
+
     # Validation and run button
     valid_config = True
     validation_messages = []
@@ -240,7 +240,7 @@ def render_failure_prediction_view():
                                 'width_growth_mm_per_year': match.get('width_growth_rate_mm_per_year', 2.0)
                             }
                 
-                # Run prediction analysis
+                # Run enhanced prediction analysis
                 results = predict_joint_failures_over_time(
                     defects_df=defects_df,
                     joints_df=joints_df,
@@ -250,9 +250,9 @@ def render_failure_prediction_view():
                     assessment_method=assessment_method,
                     window_years=window_years,
                     safety_factor=safety_factor,
-                    growth_rates_dict=growth_rates_dict,
-                    pipe_creation_year=pipe_creation_year,
-                    current_year=current_year
+                    growth_rates_dict=growth_rates_dict,    # type: ignore
+                    pipe_creation_year=pipe_creation_year,  # type: ignore
+                    current_year=current_year               # type: ignore
                 )
                 
                 # Store results in session state
@@ -262,7 +262,8 @@ def render_failure_prediction_view():
                     'selected_year': selected_year,
                     'assessment_method': assessment_method,
                     'operating_pressure_mpa': operating_pressure_mpa,
-                    'window_years': window_years
+                    'window_years': window_years,
+                    'pipe_diameter_m': pipe_diameter_m
                 }
                 
                 st.success("✅ Failure prediction analysis completed!")
@@ -282,13 +283,12 @@ def render_failure_prediction_view():
 
 
 def display_failure_prediction_results():
-    """Display the failure prediction results with charts and tables."""
+    """Display the failure prediction results with charts, tables, and joint visualization."""
     
     results = st.session_state.failure_prediction_results
     config = st.session_state.failure_prediction_config
     
     # Summary metrics
-    st.markdown('<div class="card-container" style="margin-top:20px;">', unsafe_allow_html=True)
     st.markdown("<div class='section-header'>📊 Prediction Summary</div>", unsafe_allow_html=True)
     
     # Create and display metrics
@@ -308,7 +308,6 @@ def display_failure_prediction_results():
     st.markdown('</div>', unsafe_allow_html=True)
     
     # Main visualization
-    st.markdown('<div class="card-container" style="margin-top:20px;">', unsafe_allow_html=True)
     st.markdown("<div class='section-header'>📈 Failure Timeline</div>", unsafe_allow_html=True)
     
     # Create and display main chart
@@ -326,7 +325,93 @@ def display_failure_prediction_results():
     
     st.markdown('</div>', unsafe_allow_html=True)
     
-    # Detailed results tabs
+    # NEW: Joint Failure Visualization Section
+    failing_joints = results.get('failing_joints_summary', [])
+    
+    if failing_joints:
+        st.markdown("<div class='section-header'>🔍 Joint Failure Analysis</div>", unsafe_allow_html=True)
+        
+        # Joint failure timeline chart
+        if len(failing_joints) > 1:
+            st.markdown("#### Failure Timeline Overview")
+            timeline_chart = create_joint_failure_timeline_chart(results['joint_failure_timeline'])
+            st.plotly_chart(timeline_chart, use_container_width=True)
+        
+        # Joint selection interface
+        st.markdown("#### Detailed Joint Visualization")
+        
+        # Create selection columns
+        select_col1, select_col2 = st.columns([3, 1])
+        
+        with select_col1:
+            # Prepare joint options sorted by failure year
+            joint_options = []
+            for joint_info in failing_joints:
+                joint_num = joint_info['joint_number']
+                failure_year = joint_info['failure_year']
+                failure_mode = joint_info['failure_mode']
+                location = joint_info['location_m']
+                defect_count = joint_info['defect_count']
+                
+                label = (f"Joint {joint_num} (Year {failure_year}) - "
+                        f"{failure_mode} @ {location:.1f}m - "
+                        f"{defect_count} defects")
+                joint_options.append((label, joint_num))
+            
+            if joint_options:
+                selected_joint_label, selected_joint_num = st.selectbox(
+                    "Select a failing joint to visualize:",
+                    options=joint_options,
+                    format_func=lambda x: x[0],
+                    key="joint_failure_selector"
+                )
+        
+        with select_col2:
+            show_visualization = st.button(
+                "🔍 Visualize Joint",
+                use_container_width=True,
+                type="secondary"
+            )
+        
+        # Display joint visualization if requested
+        if show_visualization and 'selected_joint_num' in locals():
+            # Get joint failure information
+            joint_timeline = results['joint_failure_timeline'].get(selected_joint_num, {})
+            
+            if joint_timeline:
+                # Get the failure information (first year it fails)
+                first_failure_year = min(joint_timeline.keys())
+                joint_failure_info = joint_timeline[first_failure_year]                
+
+                # Create and display the before/after visualization
+                st.markdown("#### Before/After Comparison")
+                
+                try:
+                    joint_viz = create_joint_failure_visualization(
+                        joint_failure_info, 
+                        config['pipe_diameter_m'] * 1000  # Convert to mm
+                    )
+                    st.plotly_chart(joint_viz, use_container_width=True)
+                    
+                    # Add explanation
+                    st.info("""
+                    **Visualization Guide:**
+                    - 🔴 **Red defects** are the ones that cause failure
+                    - **Color intensity** indicates defect depth severity
+                    - **Blue arrows** show growth direction and magnitude
+                    - **Left side** shows current state, **right side** shows projected state at failure
+                    """)
+                    
+                except Exception as e:
+                    st.error(f"Error creating joint visualization: {str(e)}")
+                    with st.expander("Debug Information"):
+                        st.write("Joint failure info:", joint_failure_info)
+            else:
+                st.warning(f"No detailed failure information available for Joint {selected_joint_num}")
+        
+        st.markdown('</div>', unsafe_allow_html=True)  # Close joint analysis container
+    
+    # Detailed results tabs (existing functionality)
     result_tabs = st.tabs(["Failure Details", "Analysis Settings", "Export Results"])
     
     with result_tabs[0]:
@@ -353,6 +438,10 @@ def display_failure_prediction_results():
             insights.append(f"📈 **Peak ERF failures**: {summary['max_erf_failures']} joints ({summary['pct_erf_failures']:.1f}%)")
             insights.append(f"📈 **Peak depth failures**: {summary['max_depth_failures']} joints ({summary['pct_depth_failures']:.1f}%)")
             
+            # NEW: Add failing joints insight
+            total_failing = len(results.get('failing_joints_summary', []))
+            insights.append(f"⚠️ **Total joints that will fail**: {total_failing} out of {summary['total_joints_analyzed']} ({total_failing/summary['total_joints_analyzed']*100:.1f}%)")
+            
             for insight in insights:
                 st.markdown(insight)
         else:
@@ -370,7 +459,8 @@ def display_failure_prediction_results():
                 'Prediction Window',
                 'Pipe Creation Year',
                 'Total Joints Analyzed',
-                'Joints with Defects'
+                'Joints with Defects',
+                'Pipe Diameter'  # NEW
             ],
             'Value': [
                 config['analysis_mode'].replace('_', ' ').title(),
@@ -380,7 +470,8 @@ def display_failure_prediction_results():
                 f"{config['window_years']} years",
                 str(st.session_state.failure_prediction_config.get('pipe_creation_year', 'N/A')),
                 f"{results['total_joints']:,}",
-                f"{results['joints_with_defects']:,}"
+                f"{results['joints_with_defects']:,}",
+                f"{config['pipe_diameter_m']:.2f} m"  # NEW
             ]
         }
         
@@ -404,6 +495,11 @@ def display_failure_prediction_results():
         - All three dimensions (depth, length, width) grow over time
         - Larger defects result in lower failure pressures
         - Conservative approach uses worst-case scenarios
+        
+        **Joint Visualization**:
+        - Shows before/after states of failing joints
+        - Highlights specific defects that cause failure
+        - Displays growth progression with arrows and metrics
         """)
     
     with result_tabs[2]:
@@ -453,9 +549,22 @@ def display_failure_prediction_results():
                 use_container_width=True
             )
         
+        # NEW: Export failing joints summary
+        if results.get('failing_joints_summary'):
+            failing_joints_df = pd.DataFrame(results['failing_joints_summary'])
+            failing_joints_csv = failing_joints_df.to_csv(index=False)
+            st.download_button(
+                label="🔍 Download Failing Joints Summary CSV",
+                data=failing_joints_csv,
+                file_name=f"failing_joints_{config['selected_year']}_{config['assessment_method']}.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+        
         st.info("""
         **Export Information:**
         - Timeline CSV contains annual and cumulative failure counts
         - Detailed CSV contains specific joint and defect failure information
+        - Failing Joints CSV contains summary of all joints that will fail
         - Data can be used for further analysis or reporting
         """)
