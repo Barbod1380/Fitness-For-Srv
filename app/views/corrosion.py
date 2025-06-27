@@ -67,8 +67,7 @@ def compute_enhanced_corrosion_metrics(defects_df, joints_df, pipe_diameter_mm, 
     return enhanced_df
 
 
-def classify_defect_pressure_status(failure_pressure_mpa, safe_pressure_mpa, 
-                                  analysis_pressure_mpa, min_allowable_pressure_mpa):
+def classify_defect_pressure_status(failure_pressure_mpa, safe_pressure_mpa, analysis_pressure_mpa, min_allowable_pressure_mpa):
     """
     Classify defect based on pressure-based criteria.
     
@@ -1424,9 +1423,7 @@ def aggregate_assessment_results_by_joint(enhanced_df, joints_df, pipe_diameter_
     return joint_summary
 
 def render_corrosion_assessment_view():
-    """Display the enhanced corrosion assessment view with pressure analysis."""
-    st.markdown('<h2 class="section-header">Corrosion Assessment</h2>', unsafe_allow_html=True)
-    
+
     # Check if datasets are available
     datasets = get_state('datasets', {})
     if not datasets:
@@ -1435,9 +1432,6 @@ def render_corrosion_assessment_view():
             Please upload pipeline inspection data using the sidebar to enable corrosion assessment.
         """)
         return
-    
-    # Create main container
-    st.markdown('<div class="card-container">', unsafe_allow_html=True)
     
     # Dataset selection
     st.markdown("<div class='section-header'>Select Dataset for Assessment</div>", unsafe_allow_html=True)
@@ -1601,9 +1595,6 @@ def render_corrosion_assessment_view():
     
     st.markdown('</div>', unsafe_allow_html=True) 
     
-    # Assessment button and results
-    st.markdown('<div class="card-container" style="margin-top:20px;">', unsafe_allow_html=True)
- 
     # Add option for handling missing wall thickness
     with st.expander("Advanced Options"):
         missing_wt_action = st.radio(
@@ -1653,7 +1644,6 @@ def render_corrosion_assessment_view():
         pressure_summary = st.session_state.pressure_summary
         
         # Traditional Assessment Results Section
-        st.markdown('<div class="card-container" style="margin-top:20px;">', unsafe_allow_html=True)
         st.markdown("<div class='section-header'>📊 Traditional Assessment Results</div>", unsafe_allow_html=True)
         
         # Create summary statistics
@@ -1701,7 +1691,6 @@ def render_corrosion_assessment_view():
         st.markdown('</div>', unsafe_allow_html=True)  # Close traditional results container
         
         # NEW: Pressure Assessment Results Section
-        st.markdown('<div class="card-container" style="margin-top:20px;">', unsafe_allow_html=True)
         st.markdown("<div class='section-header'>🎯 Pressure-Based Assessment Results</div>", unsafe_allow_html=True)
         
         # Summary metrics for each method
@@ -1875,7 +1864,7 @@ def render_corrosion_assessment_view():
         st.markdown('</div>', unsafe_allow_html=True)  # Close preview container
         
         # Export Section
-        st.markdown('<div class="card-container" style="margin-top:20px;">', unsafe_allow_html=True)
+        st.markdown('<div class="card" style="margin-top:20px;">', unsafe_allow_html=True)
         st.markdown("<div class='section-header'>Export Results</div>", unsafe_allow_html=True)
         download_link = create_enhanced_csv_download_link(enhanced_df, selected_year)
         st.markdown(download_link, unsafe_allow_html=True)
