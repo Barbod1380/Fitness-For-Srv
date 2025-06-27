@@ -36,7 +36,7 @@ def feature_cat_normalized(length_norm, width_norm):
         return "Pitting"
 
 
-def create_clean_combined_defect_plot(defects_df, joints_df):
+def create_clean_combined_defect_plot(defects_df, joints_df, title_suffix = ""):
     """
     Create a clean combined plot with defect categorization map and frequency chart side by side.
     No annotations or hover - just the pure visualization.
@@ -56,9 +56,13 @@ def create_clean_combined_defect_plot(defects_df, joints_df):
     missing_joint_cols = [col for col in required_joint_cols if col not in joints_df.columns]
     
     if missing_defect_cols or missing_joint_cols:
+        # Create subplots with dynamic titles
+        left_title = f"🔍 Defect Categorization Map{title_suffix}"
+        right_title = f"📊 Category Frequency{title_suffix}"
+        
         fig = make_subplots(
             rows=1, cols=2,
-            subplot_titles=["Categorization Map", "Frequency Chart"],
+            subplot_titles=[left_title, right_title],
             specs=[[{"type": "xy"}, {"type": "xy"}]],
             horizontal_spacing=0.05,
             column_widths=[0.5, 0.5]

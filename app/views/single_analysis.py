@@ -86,8 +86,6 @@ def render_single_analysis_view():
 
     # Tab 2: Defect Dimensions Analysis
     with tabs[1]:
-        st.subheader("Defect Dimension Analysis")
-
         st.markdown("<div class='section-header'>Dimension Statistics</div>", unsafe_allow_html=True)
         stats_df = create_dimension_statistics_table(defects_df)
         if not stats_df.empty:
@@ -132,7 +130,7 @@ def render_single_analysis_view():
         else:
             info_box("No dimension data available for plotting distributions.", "warning")
 
-        # ADD THIS NEW SECTION HERE:
+
         # ========================================================================
         # NEW: Clean Combined FFS Defect Categorization (Map + Bar Chart)
         # ========================================================================
@@ -142,24 +140,85 @@ def render_single_analysis_view():
             unsafe_allow_html=True
         )
         
-        # Create the clean combined categorization plot
-        categorization_fig = create_clean_combined_defect_plot(defects_df, joints_df)
-        if categorization_fig:
-            st.plotly_chart(categorization_fig, use_container_width=True, config={
-                "displayModeBar": True,
-                "displaylogo": False,
-                "modeBarButtonsToAdd": ["toImage"],
-                "toImageButtonOptions": {
-                    "format": "png",
-                    "filename": "defect_categorization_analysis",
-                    "height": 1200,
-                    "width": 1200,
-                    "scale": 2
-                }
-            })
-        else:
-            info_box("Unable to create defect categorization analysis - check data requirements.", "warning")
+        # Check if surface location data is available
+        has_surface_location = ('surface location' in defects_df.columns and 
+                               not defects_df['surface location'].isna().all())
         
+        if has_surface_location:
+            # Count defects by surface location
+            surface_counts = defects_df['surface location'].value_counts()
+            int_count = surface_counts.get('INT', 0)
+            nonint_count = surface_counts.get('NON-INT', 0)
+            total_count = len(defects_df)
+            
+            # Create selection options with counts
+            plot_options = [
+                f"All Defects ({total_count} total)",
+                f"Internal (INT) Only ({int_count} defects)",
+                f"External (NON-INT) Only ({nonint_count} defects)"
+            ]
+            
+            # User selection
+            categorization_col1, categorization_col2 = st.columns([3, 1])
+            
+            with categorization_col1:
+                selected_surface_filter = st.selectbox(
+                    "Select defect surface location to analyze:",
+                    options=plot_options,
+                    index=0,
+                    key="categorization_surface_filter",
+                    help="Choose which defects to include in the FFS categorization analysis"
+                )
+            
+            # Filter defects based on selection
+            if "Internal (INT)" in selected_surface_filter:
+                filtered_defects_cat = defects_df[defects_df['surface location'] == 'INT'].copy()
+                plot_title_suffix = " - Internal (INT) Defects Only"
+                analysis_note = f"Analysis limited to {len(filtered_defects_cat)} internal defects"
+            elif "External (NON-INT)" in selected_surface_filter:
+                filtered_defects_cat = defects_df[defects_df['surface location'] == 'NON-INT'].copy()
+                plot_title_suffix = " - External (NON-INT) Defects Only"
+                analysis_note = f"Analysis limited to {len(filtered_defects_cat)} external defects"
+            else:
+                filtered_defects_cat = defects_df.copy()
+                plot_title_suffix = " - All Defects"
+                analysis_note = f"Analysis includes all {len(filtered_defects_cat)} defects"
+            
+            # Show analysis info
+            if len(filtered_defects_cat) == 0:
+                st.warning(f"No defects found for the selected filter: {selected_surface_filter}")
+            else:
+                st.caption(analysis_note)
+        else:
+            # No surface location data available - use all defects
+            filtered_defects_cat = defects_df.copy()
+            plot_title_suffix = ""
+            st.info("Surface location data not available - showing analysis for all defects")
+        
+        # Create the categorization plot with filtered data
+        if len(filtered_defects_cat) > 0:
+            categorization_fig = create_clean_combined_defect_plot(
+                filtered_defects_cat, 
+                joints_df, 
+                title_suffix=plot_title_suffix # type: ignore
+            )
+            if categorization_fig:
+                st.plotly_chart(categorization_fig, use_container_width=True, config={
+                    "displayModeBar": True,
+                    "displaylogo": False,
+                    "modeBarButtonsToAdd": ["toImage"],
+                    "toImageButtonOptions": {
+                        "format": "png",
+                        "filename": f"defect_categorization_analysis_{selected_surface_filter.split()[0].lower() if has_surface_location else 'all'}",
+                        "height": 1200,
+                        "width": 1200,
+                        "scale": 2
+                    }
+                })
+            else:
+                info_box("Unable to create defect categorization analysis - check data requirements.", "warning")
+
+
         # Enhanced explanation section
         with st.expander("📖 Understanding FFS Defect Categorization", expanded=False):
             st.markdown("""
@@ -309,6 +368,26 @@ def render_single_analysis_view():
                             key="defect_type_filter"
                         )
 
+            with st.expander("Visualization Options", expanded=True):
+                color_col1, color_col2 = st.columns(2)
+                
+                with color_col1:
+                    # Check if surface location data is available
+                    has_surface_location = 'surface location' in defects_df.columns and not defects_df['surface location'].isna().all()
+                    
+                    if has_surface_location:
+                        color_options = ["Depth (%)", "Surface Location (Internal/External)"]
+                    else:
+                        color_options = ["Depth (%)"]
+                        
+                    color_by = st.selectbox(
+                        "Color defects by:",
+                        options=color_options,
+                        index=0,
+                        key="pipeline_color_method",
+                        help="Choose how to color the defects on the pipeline visualization"
+                    )
+
             if st.button(
                 "Generate Pipeline Visualization",
                 key="show_pipeline_single_analysis",
@@ -362,16 +441,26 @@ def render_single_analysis_view():
                         )
 
                     pipe_diameter = st.session_state.datasets[selected_year]['pipe_diameter']
-                    fig = create_unwrapped_pipeline_visualization(filtered_defects, pipe_diameter)
+                    fig = create_unwrapped_pipeline_visualization(filtered_defects, pipe_diameter, color_by)
                     
                     st.plotly_chart(fig, use_container_width=True, config={"responsive": True})
-                    st.info(
-                        "**Visualization Guide:**\n"
-                        "- Each point represents a defect\n"
-                        "- X-axis: distance along pipeline (m)\n"
-                        "- Y-axis: clock position\n"
-                        "- Color: defect depth percentage"
-                    )
+                    if color_by == "Surface Location (Internal/External)":
+                        st.info(
+                            "**Visualization Guide:**\n"
+                            "- Each point represents a defect\n"
+                            "- X-axis: distance along pipeline (m)\n"
+                            "- Y-axis: clock position\n"
+                            "- Color: Blue = Internal defects, Red = External defects"
+                        )
+                    else:
+                        st.info(
+                            "**Visualization Guide:**\n"
+                            "- Each point represents a defect\n"
+                            "- X-axis: distance along pipeline (m)\n"
+                            "- Y-axis: clock position\n"
+                            "- Color: defect depth percentage"
+                        )
+                        
 
         else:
             # --- Joint‐by‐Joint Visualization ---

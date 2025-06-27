@@ -72,11 +72,15 @@ def standardize_surface_location(value):
     """
     Standardize different surface location values to INT/NON-INT format.
     
+    This function handles various common formats for internal/external surface location:
+    - Internal: INT, I, INTERNAL, INSIDE, YES, INTERNE, 1, TRUE
+    - External: NON-INT, E, EXT, EXTERNAL, OUTSIDE, NO, NON INT, EXTERNE, 0, FALSE
+    
     Parameters:
     - value: The original surface location value
     
     Returns:
-    - Standardized value: either "INT" or "NON-INT"
+    - Standardized value: either "INT", "NON-INT", or None for invalid/missing values
     """
     if pd.isna(value) or value is None:
         return None
@@ -84,11 +88,41 @@ def standardize_surface_location(value):
     # Convert to uppercase string for consistent comparison
     value_str = str(value).strip().upper()
     
-    # Map different formats to standard values
-    if value_str in ['INT', 'I', 'INTERNAL', 'YES', 'INTERNE']:
+    # Remove common punctuation and extra spaces
+    value_str = value_str.replace('-', '').replace('_', '').replace('.', '').replace(' ', '')
+    
+    # Comprehensive mapping for internal defects
+    internal_variants = [
+        'INT', 'I', 'INTERNAL', 'INSIDE', 'INTERIOR', 'INNER',
+        'YES', 'Y', 'TRUE', 'T', '1', 
+        'INTERNE', 'INTERNO', 'INTERIEUR',  # Other languages
+        'IN', 'INTERN'
+    ]
+    
+    # Comprehensive mapping for external defects
+    external_variants = [
+        'NONINT', 'NON-INT', 'NONINT', 'E', 'EXT', 'EXTERNAL', 'EXTERIOR', 
+        'OUTSIDE', 'OUTER', 'NO', 'N', 'FALSE', 'F', '0',
+        'EXTERNE', 'EXTERNO', 'EXTERIEUR',  # Other languages
+        'OUT', 'EXTERN'
+    ]
+    
+    # Check for internal defects
+    if value_str in internal_variants:
         return 'INT'
-    elif value_str in ['NON-INT', 'E', 'EXTERNAL', 'NO', 'NON INT', 'EXTERNE']:
+    
+    # Check for external defects  
+    elif value_str in external_variants:
         return 'NON-INT'
+    
+    # Try partial matching for common patterns
+    elif any(variant in value_str for variant in ['INT', 'INTERN']):
+        return 'INT'
+    elif any(variant in value_str for variant in ['EXT', 'EXTERN', 'OUT']):
+        return 'NON-INT'
+    
     else:
-        # For unknown values, return as is
-        return value
+        # For unknown values, return None to indicate need for manual review
+        import warnings
+        warnings.warn(f"Unknown surface location value: '{value}'. Please review and standardize manually.")
+        return None
