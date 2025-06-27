@@ -25,19 +25,79 @@ def float_to_clock(time_float):
 
 def parse_clock(clock_str):
     """
-    Parse clock string format (e.g. "5:30") to decimal hours (e.g. 5.5).
+    Parse clock string format (e.g. "5:30" or "5:30:45") to decimal hours (e.g. 5.5).
+    Now handles both HH:MM and HH:MM:SS formats.
     
     Parameters:
-    - clock_str: String in HH:MM format
+    - clock_str: String in HH:MM or HH:MM:SS format
     
     Returns:
     - Float representing hours (e.g. 5.5 for 5:30)
     """
     try:
-        hours, minutes = map(int, clock_str.split(":"))
-        return hours + minutes / 60
+        # Remove any whitespace
+        clock_str = str(clock_str).strip()
+        
+        # Split by colon
+        parts = clock_str.split(":")
+        
+        if len(parts) == 2:
+            # HH:MM format
+            hours, minutes = map(int, parts)
+            return hours + minutes / 60
+        elif len(parts) == 3:
+            # HH:MM:SS format - ignore seconds
+            hours, minutes, _ = map(int, parts)
+            return hours + minutes / 60
+        else:
+            return np.nan
     except Exception:
         return np.nan
+
+
+def clean_clock_format(clock_value):
+    """
+    Clean clock format by removing seconds if present.
+    Handles various input types and formats.
+    
+    Parameters:
+    - clock_value: Clock value in various formats
+    
+    Returns:
+    - String in HH:MM format or None
+    """
+    if pd.isna(clock_value):
+        return None
+    
+    # Convert to string
+    clock_str = str(clock_value).strip()
+    
+    # If it's already in HH:MM format, return as is
+    if ':' in clock_str:
+        parts = clock_str.split(':')
+        if len(parts) == 2:
+            # Already in HH:MM format
+            try:
+                hours = int(parts[0])
+                minutes = int(parts[1])
+                return f"{hours:02d}:{minutes:02d}"
+            except ValueError:
+                return None
+        elif len(parts) == 3:
+            # HH:MM:SS format - remove seconds
+            try:
+                hours = int(parts[0])
+                minutes = int(parts[1])
+                return f"{hours:02d}:{minutes:02d}"
+            except ValueError:
+                return None
+    
+    # If it's a numeric value, try to convert it
+    try:
+        float_val = float(clock_str)
+        return float_to_clock(float_val)
+    except ValueError:
+        return None
 
 
 def decimal_to_clock_str(decimal_hours):
