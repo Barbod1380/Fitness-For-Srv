@@ -8,7 +8,7 @@ APP_SUBTITLE = "Upload inspection data to analyze pipeline condition and track d
 APP_VERSION = "1.0"
 
 # Data processing settings
-ENCODING_OPTIONS = ['utf-8', 'latin-1', 'cp1252', 'iso-8859-1']
+ENCODING_OPTIONS = ['latin-1', 'cp1252', 'iso-8859-1', 'utf-8']
 
 # Visualization settings
 DEFAULT_PLOT_HEIGHT = 600

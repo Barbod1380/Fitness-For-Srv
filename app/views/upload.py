@@ -29,14 +29,10 @@ def load_csv_with_encoding(file):
     # This function is copied from main.py
     for encoding in ENCODING_OPTIONS:
         try:
-            # Reset file pointer to the beginning
-            file.seek(0)
-            
             # Try to read with current encoding
             df = pd.read_csv(
                 file, 
                 encoding=encoding,
-                sep=None,  # Auto-detect separator
                 engine='python',  # More flexible engine
                 on_bad_lines='warn'  # Continue despite bad lines
             )
