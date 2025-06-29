@@ -11,6 +11,11 @@ import base64
 from app.ui_components import create_metrics_row
 from app.services.state_manager import get_state
 from core.ffs_defect_interaction import *
+from visualization.defect_assessment_viz import (
+    create_defect_assessment_scatter_plot,
+    create_defect_assessment_summary_table
+)
+
 
 def compute_enhanced_corrosion_metrics(defects_df, joints_df, pipe_diameter_mm, smys_mpa, 
                                      safety_factor, analysis_pressure_mpa, max_allowable_pressure_mpa):
@@ -1810,6 +1815,96 @@ def render_corrosion_assessment_view():
                 st.markdown("#### Pressure Assessment Visualization")
                 pressure_viz = create_pressure_assessment_visualization(enhanced_df, method)
                 st.plotly_chart(pressure_viz, use_container_width=True)    
+
+
+        
+        st.markdown('</div>', unsafe_allow_html=True)  # Close pressure results container
+        
+        # NEW: Defect Assessment Population Plot
+        st.markdown("<div class='section-header'>🎯 Defect Population Assessment</div>", unsafe_allow_html=True)
+        
+        # Create the defect assessment scatter plot
+        assessment_plot = create_defect_assessment_scatter_plot(
+            enhanced_df, 
+            pipe_diameter_mm, 
+            smys_mpa, 
+            safety_factor
+        )
+        
+        if assessment_plot:
+            st.plotly_chart(assessment_plot, use_container_width=True, config={
+                "displayModeBar": True,
+                "displaylogo": False,
+                "modeBarButtonsToAdd": ["toImage"],
+                "toImageButtonOptions": {
+                    "format": "png",
+                    "filename": f"defect_assessment_population_{selected_year}",
+                    "height": 600,
+                    "width": 1000,
+                    "scale": 2
+                }
+            })
+            
+            # Add explanation
+            st.markdown("""
+            **📊 Plot Interpretation:**
+            - **X-axis (log scale)**: Defect axial length from 1mm to 10,000mm
+            - **Y-axis**: Defect depth in millimeters (actual depth, not percentage)
+            - **Color coding**: Blue = External, Red = Internal, Green = Combined (clustered), Gray = Unknown
+            - **Reference lines**: 
+              - Yellow dashed = ASME B31G allowable defect envelope
+              - Orange solid = Modified B31G allowable defect envelope  
+              - Black horizontal = Nominal wall thickness limit
+            - **Engineering insight**: Defects above the curves require special attention per FFS standards
+            """)
+            
+            # Create and display summary table
+            assessment_summary = create_defect_assessment_summary_table(enhanced_df)
+            if not assessment_summary.empty:
+                st.markdown("#### 📋 Defect Population Summary by Surface Location")
+                st.dataframe(
+                    assessment_summary, 
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "Surface Location": st.column_config.TextColumn("🌍 Surface", width="medium"),
+                        "Count": st.column_config.NumberColumn("🔢 Count", width="small"),
+                        "Avg Depth (mm)": st.column_config.NumberColumn("📏 Avg Depth (mm)", format="%.2f", width="medium"),
+                        "Max Depth (mm)": st.column_config.NumberColumn("⚠️ Max Depth (mm)", format="%.2f", width="medium"),
+                        "Avg Length (mm)": st.column_config.NumberColumn("📐 Avg Length (mm)", format="%.1f", width="medium"),
+                        "Max Length (mm)": st.column_config.NumberColumn("📏 Max Length (mm)", format="%.1f", width="medium"),
+                        "Percentage": st.column_config.NumberColumn("📊 %", format="%.1f%%", width="small")
+                    }
+                )
+                
+                # Add insights based on the data
+                external_count = assessment_summary[assessment_summary['Surface Location'] == 'NON-INT']['Count'].sum()
+                internal_count = assessment_summary[assessment_summary['Surface Location'] == 'INT']['Count'].sum()
+                total_count = assessment_summary['Count'].sum()
+                
+                if total_count > 0:
+                    external_pct = (external_count / total_count * 100) if external_count > 0 else 0
+                    internal_pct = (internal_count / total_count * 100) if internal_count > 0 else 0
+                    
+                    insights = []
+                    if external_pct > 70:
+                        insights.append("🔍 **External corrosion dominance** - typical for buried pipelines")
+                    if internal_pct > 30:
+                        insights.append("⚠️ **Significant internal corrosion** - consider product contamination or flow conditions")
+                    if external_pct > 0 and internal_pct > 0:
+                        insights.append("🔄 **Mixed corrosion pattern** - requires comprehensive integrity management")
+                    
+                    if insights:
+                        st.markdown("#### 🔬 Engineering Insights")
+                        for insight in insights:
+                            st.markdown(insight)
+        
+        st.markdown('</div>', unsafe_allow_html=True)  # Close defect assessment container
+
+
+
+
+
  
         # Enhanced Dataset Preview Section
         st.markdown("<div class='section-header'>Enhanced Dataset Preview</div>", unsafe_allow_html=True)

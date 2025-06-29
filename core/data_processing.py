@@ -55,7 +55,8 @@ def process_pipeline_data(df):
     
     # === Efficient forward fill ===
     if "joint number" in df_view.columns:
-        df_view["joint number"].ffill(inplace=True)
+        df_view = df_view.copy()
+        df_view["joint number"] = df_view["joint number"].ffill()
     
     # === Optimized defects DataFrame creation ===
     length_width_cols = ["length [mm]", "width [mm]"]
