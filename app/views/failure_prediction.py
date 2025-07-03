@@ -106,7 +106,7 @@ def render_failure_prediction_view():
             max_value=20.0,
             value=5.0,
             step=0.1,
-            format="%.1f",
+            format="%.3f",
             help="Current/planned operating pressure for ERF calculation"
         )
         st.caption(f"= {operating_pressure_mpa * 145.038:.0f} psi")
@@ -151,7 +151,7 @@ def render_failure_prediction_view():
                 max_value=3.0,
                 value=stored_diameter,
                 step=0.1,
-                format="%.2f"
+                format="%.3f"
             )
         
         with adv_col2:
@@ -185,7 +185,7 @@ def render_failure_prediction_view():
                 max_value=2.0,
                 value=1.39,
                 step=0.01,
-                format="%.2f",
+                format="%.3f",
                 help="Safety factor for failure pressure calculation"
             )
     

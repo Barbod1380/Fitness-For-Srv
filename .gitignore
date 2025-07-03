@@ -7,8 +7,8 @@ __pycache__/
 *.so
 
 # Virtual environment folders
-venv/
-.env/
+ffs/
+.ffs/
 .venv/
 
 # Jupyter Notebook checkpoints

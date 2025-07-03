@@ -1616,7 +1616,7 @@ def render_corrosion_assessment_view():
             max_value=3.0,
             value=pipe_diameter_stored,
             step=0.1,
-            format="%.2f",
+            format="%.3f",
             key="pipe_diameter_corrosion",
             help="Enter the OUTSIDE diameter (OD) of the pipeline in meters"
         )
@@ -1648,7 +1648,7 @@ def render_corrosion_assessment_view():
                 max_value=800.0,
                 value=358.0,
                 step=1.0,
-                format="%.0f",
+                format="%.2f",
                 key="smys_custom"
             )
 
@@ -1673,7 +1673,7 @@ def render_corrosion_assessment_view():
                 max_value=2.0,
                 value=1.39,
                 step=0.01,
-                format="%.2f",
+                format="%.3f",
                 key="safety_factor_custom"
             )
 
@@ -1685,7 +1685,7 @@ def render_corrosion_assessment_view():
             max_value=20.0,
             value=5.0,
             step=0.1,
-            format="%.1f",
+            format="%.3f",
             key="analysis_pressure_corrosion",
             help="Current or proposed operating pressure for assessment"
         )
@@ -1699,7 +1699,7 @@ def render_corrosion_assessment_view():
             max_value=20.0,
             value=8.0,
             step=0.1,
-            format="%.1f",
+            format="%.3f",
             key="max_allowable_pressure_corrosion", 
             help="Maximum Allowable Operating Pressure (MAOP) - regulatory/design limit"
         )

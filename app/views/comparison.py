@@ -426,7 +426,7 @@ def display_comparison_visualization_tabs(comparison_results, earlier_year, late
                     max_value=20.0,
                     value=5.0,
                     step=0.1,
-                    format="%.1f",
+                    format="%.2f",
                     key="operating_pressure_remaining_life",
                     help="Current operating pressure of the pipeline"
                 )
@@ -439,7 +439,7 @@ def display_comparison_visualization_tabs(comparison_results, earlier_year, late
                     max_value=3.0,
                     value=1.0,
                     step=0.1,
-                    format="%.2f",
+                    format="%.3f",
                     key="pipe_diameter_remaining_life",
                     help="Outside diameter of the pipeline"
                 )
@@ -472,7 +472,7 @@ def display_comparison_visualization_tabs(comparison_results, earlier_year, late
                         max_value=800.0,
                         value=358.0,
                         step=1.0,
-                        format="%.0f",
+                        format="%.2f",
                         key="smys_custom_remaining_life"
                     )
             
